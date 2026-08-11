@@ -1,0 +1,58 @@
+<Window x:Class="SoundSwitchQuick.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SoundSwitch Quick"
+        Width="340" Height="Auto"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        Topmost="True">
+    <Border x:Name="RootCard" Background="#F013161C" BorderBrush="#3AFFFFFF" BorderThickness="1" CornerRadius="18" Padding="10">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.34"/>
+        </Border.Effect>
+        <StackPanel>
+            <Border x:Name="CollapsedCard" Background="#FF1C2028" CornerRadius="14" Padding="12" Cursor="Hand"
+                    MouseEnter="Widget_MouseEnter" MouseLeftButtonDown="CollapsedCard_MouseLeftButtonDown" MouseRightButtonUp="CollapsedCard_MouseRightButtonUp">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="42"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Width="34" Height="34" CornerRadius="11" Background="#263F66FF">
+                        <TextBlock x:Name="CurrentGlyph" Text="🔊" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,0,10,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="CurrentName" Text="Поиск устройства…" Foreground="#FFF7F8FB" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="Текущий аудиовыход" Foreground="#FFA3AAB7" FontSize="10.5"/>
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="⌄" Foreground="#FFA3AAB7" FontSize="16" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <Border x:Name="ExpandedPanel" Visibility="Collapsed" Margin="0,9,0,0" MouseLeave="ExpandedPanel_MouseLeave">
+                <StackPanel>
+                    <Grid Margin="4,2,4,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Куда отправить звук?" Foreground="#FFF7F8FB" FontSize="16" FontWeight="SemiBold"/>
+                            <TextBlock Text="Наведи и выбери — один клик" Foreground="#FFA3AAB7" FontSize="10.5"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="↻" Width="31" Height="31" Click="Refresh_Click" ToolTip="Обновить"/>
+                    </Grid>
+                    <ScrollViewer MaxHeight="310" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="DeviceButtons"/>
+                    </ScrollViewer>
+                    <TextBlock x:Name="StatusText" Margin="5,5,5,0" Foreground="#FF6E7685" FontSize="9.5" Text="SoundSwitch Quick"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </Border>
+</Window>
