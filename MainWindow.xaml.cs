@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using WpfButton = System.Windows.Controls.Button;
 
 namespace SoundSwitchQuick;
 
@@ -70,7 +71,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private Button CreateDeviceButton(AudioDeviceItem device)
+    private WpfButton CreateDeviceButton(AudioDeviceItem device)
     {
         var title = new TextBlock
         {
@@ -108,7 +109,7 @@ public partial class MainWindow : Window
             grid.Children.Add(check);
         }
 
-        var button = new Button
+        var button = new WpfButton
         {
             Tag = device.Id,
             Content = grid,
@@ -127,7 +128,7 @@ public partial class MainWindow : Window
 
     private async void DeviceButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button button || button.Tag is not string deviceId) return;
+        if (sender is not WpfButton button || button.Tag is not string deviceId) return;
         try
         {
             _audio.SetDefault(deviceId);
