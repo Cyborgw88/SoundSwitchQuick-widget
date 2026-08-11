@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private readonly AudioService _audio = new();
     private readonly WidgetSettings _settings;
     private readonly DispatcherTimer _refreshTimer;
+    private readonly DispatcherTimer _collapseTimer;
 
     public MainWindow()
     {
@@ -31,6 +32,14 @@ public partial class MainWindow : Window
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
         _refreshTimer.Tick += (_, _) => RefreshDevices(false);
         _refreshTimer.Start();
+
+        _collapseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(420) };
+        _collapseTimer.Tick += (_, _) =>
+        {
+            _collapseTimer.Stop();
+            if (!RootCard.IsMouseOver)
+                ExpandedPanel.Visibility = Visibility.Collapsed;
+        };
     }
 
     public void ShowWidget()
@@ -45,6 +54,7 @@ public partial class MainWindow : Window
         WindowState = WindowState.Normal;
         Activate();
         RefreshDevices();
+        _collapseTimer.Stop();
         ExpandedPanel.Visibility = Visibility.Visible;
     }
 
@@ -149,14 +159,15 @@ public partial class MainWindow : Window
 
     private void Widget_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        _collapseTimer.Stop();
         RefreshDevices(false);
         ExpandedPanel.Visibility = Visibility.Visible;
     }
 
-    private void ExpandedPanel_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    private void RootCard_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (!CollapsedCard.IsMouseOver)
-            ExpandedPanel.Visibility = Visibility.Collapsed;
+        _collapseTimer.Stop();
+        _collapseTimer.Start();
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e) => RefreshDevices();
@@ -214,6 +225,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _collapseTimer.Stop();
         _refreshTimer.Stop();
         _audio.Dispose();
         base.OnClosed(e);
