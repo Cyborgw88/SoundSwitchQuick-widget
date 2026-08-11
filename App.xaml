@@ -1,0 +1,17 @@
+<Application x:Class="SoundSwitchQuick.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <SolidColorBrush x:Key="WidgetBrush" Color="#F013161C"/>
+        <SolidColorBrush x:Key="WidgetBorderBrush" Color="#3AFFFFFF"/>
+        <SolidColorBrush x:Key="CardBrush" Color="#FF1C2028"/>
+        <SolidColorBrush x:Key="CardHoverBrush" Color="#FF252B35"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF8CA8FF"/>
+        <SolidColorBrush x:Key="AccentSoftBrush" Color="#263F66FF"/>
+        <SolidColorBrush x:Key="SuccessBrush" Color="#FF6DDB9A"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#FFF7F8FB"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#FFA3AAB7"/>
+        <SolidColorBrush x:Key="FaintTextBrush" Color="#FF6E7685"/>
+    </Application.Resources>
+</Application>
