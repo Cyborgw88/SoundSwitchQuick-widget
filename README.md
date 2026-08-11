@@ -18,36 +18,6 @@ Hover-виджет для быстрого переключения систем
 Свернутое состояние: компактная тёмная полупрозрачная капсула с иконкой и названием текущего выхода.
 Раскрытое состояние: карточки устройств, мягкая подсветка текущего выхода, hover-состояния и короткая анимация появления.
 
-## Запуск из Visual Studio
+## Сборка
 
-1. Установи Visual Studio 2022 с workload **.NET desktop development** или .NET 8 SDK.
-2. Открой `SoundSwitchQuick.csproj`.
-3. Выполни Restore NuGet packages.
-4. Запусти проект.
-
-## Сборка одного EXE
-
-Открой PowerShell в папке проекта и выполни:
-
-```powershell
-.\\build.ps1
-```
-
-или напрямую:
-
-```powershell
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
-```
-
-Готовый файл будет здесь:
-
-`bin\\Release\\net8.0-windows\\win-x64\\publish\\SoundSwitchQuick.exe`
-
-## Техническая заметка
-
-Список устройств и определение текущего default endpoint выполняются через Windows Core Audio/MMDevice API (NAudio).
-Для назначения нового системного default endpoint используется Windows PolicyConfig COM-интерфейс. Он широко применяется desktop-утилитами, но не документирован Microsoft как публичный API.
-
-## Автоматическая сборка через GitHub Actions
-
-В проект добавлен `.github/workflows/build-windows.yml`. После push в `main` или ручного запуска workflow GitHub собирает self-contained `SoundSwitchQuick.exe` для Windows x64 и публикует его в Artifacts.
+GitHub Actions собирает self-contained `SoundSwitchQuick.exe` для Windows x64 и публикует его в Artifacts.
