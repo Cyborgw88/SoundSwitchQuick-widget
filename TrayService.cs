@@ -13,10 +13,21 @@ public sealed class TrayService : IDisposable
 
     public void Initialize()
     {
+        Icon trayIcon;
+        try
+        {
+            trayIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? string.Empty)
+                       ?? SystemIcons.Application;
+        }
+        catch
+        {
+            trayIcon = SystemIcons.Application;
+        }
+
         _icon = new Forms.NotifyIcon
         {
             Text = "SoundSwitch Quick",
-            Icon = SystemIcons.Information,
+            Icon = trayIcon,
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
@@ -31,8 +42,23 @@ public sealed class TrayService : IDisposable
     private Forms.ContextMenuStrip BuildMenu()
     {
         var menu = new Forms.ContextMenuStrip();
+
         menu.Items.Add("Показать переключатель", null, (_, _) => _window.ShowWidgetAndExpand());
+        menu.Items.Add("Настройки", null, (_, _) => _window.OpenSettings());
         menu.Items.Add("Обновить устройства", null, (_, _) => _window.RefreshDevices());
+
+        var topmostItem = new Forms.ToolStripMenuItem("Поверх остальных окон")
+        {
+            Checked = _window.Topmost,
+            CheckOnClick = false
+        };
+        topmostItem.Click += (_, _) =>
+        {
+            _window.ToggleTopmost();
+            topmostItem.Checked = _window.Topmost;
+        };
+        menu.Items.Add(topmostItem);
+
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Выход", null, (_, _) => System.Windows.Application.Current.Shutdown());
         return menu;
@@ -40,7 +66,9 @@ public sealed class TrayService : IDisposable
 
     public void Dispose()
     {
-        if (_icon is null) return;
+        if (_icon is null)
+            return;
+
         _icon.Visible = false;
         _icon.Dispose();
     }

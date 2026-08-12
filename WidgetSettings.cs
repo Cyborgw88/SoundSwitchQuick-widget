@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -9,6 +10,9 @@ public sealed class WidgetSettings
     public double? Left { get; set; }
     public double? Top { get; set; }
     public bool Topmost { get; set; } = true;
+    public bool AutostartEnabled { get; set; } = true;
+    public string Theme { get; set; } = "Dark";
+    public Dictionary<string, string> DeviceAliases { get; set; } = new();
 }
 
 public static class WidgetSettingsStore
@@ -24,9 +28,20 @@ public static class WidgetSettingsStore
         try
         {
             if (!File.Exists(SettingsPath)) return new WidgetSettings();
-            return JsonSerializer.Deserialize<WidgetSettings>(File.ReadAllText(SettingsPath)) ?? new WidgetSettings();
+
+            var settings = JsonSerializer.Deserialize<WidgetSettings>(File.ReadAllText(SettingsPath))
+                           ?? new WidgetSettings();
+
+            settings.DeviceAliases ??= new Dictionary<string, string>();
+            if (string.IsNullOrWhiteSpace(settings.Theme))
+                settings.Theme = "Dark";
+
+            return settings;
         }
-        catch { return new WidgetSettings(); }
+        catch
+        {
+            return new WidgetSettings();
+        }
     }
 
     public static void Save(WidgetSettings settings)
@@ -34,8 +49,13 @@ public static class WidgetSettingsStore
         try
         {
             Directory.CreateDirectory(SettingsDirectory);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(
+                SettingsPath,
+                JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { }
+        catch
+        {
+            // Settings persistence should never prevent the widget from working.
+        }
     }
 }

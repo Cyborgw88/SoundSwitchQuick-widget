@@ -6,12 +6,45 @@
         <SolidColorBrush x:Key="WidgetBrush" Color="#F013161C"/>
         <SolidColorBrush x:Key="WidgetBorderBrush" Color="#3AFFFFFF"/>
         <SolidColorBrush x:Key="CardBrush" Color="#FF1C2028"/>
-        <SolidColorBrush x:Key="CardHoverBrush" Color="#FF252B35"/>
-        <SolidColorBrush x:Key="AccentBrush" Color="#FF8CA8FF"/>
-        <SolidColorBrush x:Key="AccentSoftBrush" Color="#263F66FF"/>
-        <SolidColorBrush x:Key="SuccessBrush" Color="#FF6DDB9A"/>
+        <SolidColorBrush x:Key="PanelBrush" Color="#FF171B22"/>
+        <SolidColorBrush x:Key="DeviceBrush" Color="#FF1C2028"/>
+        <SolidColorBrush x:Key="DeviceActiveBrush" Color="#FF262B37"/>
         <SolidColorBrush x:Key="TextBrush" Color="#FFF7F8FB"/>
         <SolidColorBrush x:Key="MutedTextBrush" Color="#FFA3AAB7"/>
         <SolidColorBrush x:Key="FaintTextBrush" Color="#FF6E7685"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF8CA8FF"/>
+        <SolidColorBrush x:Key="AccentSoftBrush" Color="#263F66FF"/>
+        <SolidColorBrush x:Key="SuccessBrush" Color="#FF6DDB9A"/>
+        <SolidColorBrush x:Key="MiniButtonBrush" Color="#FF252B35"/>
+        <SolidColorBrush x:Key="InputBrush" Color="#FF11151B"/>
+        <SolidColorBrush x:Key="InputBorderBrush" Color="#33FFFFFF"/>
+
+        <Style x:Key="MiniButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource MiniButtonBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource WidgetBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,6"/>
+        </Style>
     </Application.Resources>
 </Application>
