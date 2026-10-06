@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -19,7 +20,15 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _refreshTimer;
     private readonly DispatcherTimer _collapseTimer;
 
+    private IReadOnlyList<AudioDeviceItem> _lastDevices = Array.Empty<AudioDeviceItem>();
+    private HashSet<string> _knownDeviceIds = new();
+    private bool _deviceSnapshotReady;
+
+    private string? _autoSwitchedToId;
+    private string? _returnDeviceId;
+
     private bool _isExpandedUp;
+    private bool _showOtherDevices;
     private double _collapsedAnchorTop;
     private double _collapsedHeight;
 
@@ -44,11 +53,11 @@ public partial class MainWindow : Window
         Loaded += (_, _) =>
         {
             RestorePosition();
-            RefreshDevices();
+            RefreshDevices(true, false);
         };
 
-        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-        _refreshTimer.Tick += (_, _) => RefreshDevices(false);
+        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _refreshTimer.Tick += (_, _) => RefreshDevices(false, true);
         _refreshTimer.Start();
 
         _collapseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(420) };
@@ -64,21 +73,24 @@ public partial class MainWindow : Window
 
     public void ShowWidget()
     {
-        if (!IsVisible) Show();
+        if (!IsVisible)
+            Show();
+
         RefreshDevices();
     }
 
     public void ShowWidgetAndExpand()
     {
-        if (!IsVisible) Show();
+        if (!IsVisible)
+            Show();
 
         WindowState = WindowState.Normal;
         Activate();
-        RefreshDevices(false);
+        RefreshDevices(false, true);
         ExpandWidget();
     }
 
-    public void RefreshDevices() => RefreshDevices(true);
+    public void RefreshDevices() => RefreshDevices(true, true);
 
     public void OpenSettings()
     {
@@ -118,35 +130,160 @@ public partial class MainWindow : Window
             StatusText.Text = $"Автозапуск: {ex.Message}";
         }
 
-        RefreshDevices(false);
+        RefreshDevices(false, false);
         SaveSettings();
     }
 
-    private void RefreshDevices(bool showStatus)
+    private void RefreshDevices(bool showStatus, bool processDeviceChanges)
     {
         try
         {
             var devices = _audio.GetPlaybackDevices();
-            var current = devices.FirstOrDefault(x => x.IsDefault) ?? devices.FirstOrDefault();
+            var changeMessage = string.Empty;
 
+            if (!_deviceSnapshotReady)
+            {
+                _knownDeviceIds = new HashSet<string>(devices.Select(x => x.Id));
+                _deviceSnapshotReady = true;
+            }
+            else if (processDeviceChanges)
+            {
+                var change = ProcessDeviceChanges(devices);
+                changeMessage = change.Message ?? string.Empty;
+
+                if (change.DefaultChanged)
+                    devices = _audio.GetPlaybackDevices();
+            }
+
+            _lastDevices = devices;
+
+            var current = devices.FirstOrDefault(x => x.IsDefault) ?? devices.FirstOrDefault();
             CurrentName.Text = current is null ? "Нет активного выхода" : GetDisplayName(current);
             CurrentGlyph.Text = current?.Glyph ?? "🔇";
+            CurrentMeta.Text = current is null
+                ? "Нет активного аудиовыхода"
+                : $"{(current.IsMuted ? "Без звука" : $"{current.VolumePercent}%")} · колесо = сменить";
 
-            DeviceButtons.Children.Clear();
-            foreach (var device in devices)
-                DeviceButtons.Children.Add(CreateDeviceButton(device));
+            RenderDeviceLists(devices);
 
-            if (showStatus)
+            if (!string.IsNullOrWhiteSpace(changeMessage))
+                StatusText.Text = changeMessage;
+            else if (showStatus)
                 StatusText.Text = devices.Count == 0
                     ? "Активные устройства не найдены"
-                    : $"Доступно устройств: {devices.Count}";
+                    : BuildDeviceCountStatus(devices);
         }
         catch (Exception ex)
         {
             StatusText.Text = "Не удалось обновить устройства";
+
             if (showStatus)
-                MessageBox.Show(ex.Message, "SoundSwitch Quick", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(
+                    ex.Message,
+                    "SoundSwitch Quick",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
         }
+    }
+
+    private (bool DefaultChanged, string? Message) ProcessDeviceChanges(IReadOnlyList<AudioDeviceItem> devices)
+    {
+        var activeIds = new HashSet<string>(devices.Select(x => x.Id));
+        var disappeared = _knownDeviceIds.Where(id => !activeIds.Contains(id)).ToList();
+        var appearedIds = activeIds.Where(id => !_knownDeviceIds.Contains(id)).ToList();
+
+        _knownDeviceIds = activeIds;
+
+        if (_autoSwitchedToId is not null &&
+            disappeared.Contains(_autoSwitchedToId) &&
+            _returnDeviceId is not null &&
+            activeIds.Contains(_returnDeviceId))
+        {
+            var returnDevice = devices.FirstOrDefault(x => x.Id == _returnDeviceId);
+            var returnName = returnDevice is null ? "предыдущее устройство" : GetDisplayName(returnDevice);
+
+            try
+            {
+                _audio.SetDefault(_returnDeviceId);
+                _autoSwitchedToId = null;
+                _returnDeviceId = null;
+                return (true, $"Возвращено: {returnName}");
+            }
+            catch
+            {
+                _autoSwitchedToId = null;
+                _returnDeviceId = null;
+            }
+        }
+
+        if (appearedIds.Count == 0)
+            return (false, null);
+
+        var appeared = devices
+            .Where(x => appearedIds.Contains(x.Id))
+            .OrderBy(x => GetFavoriteOrder(x.Id))
+            .ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        foreach (var device in appeared)
+        {
+            var action = GetConnectAction(device.Id);
+            if (action == DeviceConnectActions.None)
+                continue;
+
+            if (action == DeviceConnectActions.Ask)
+            {
+                var answer = MessageBox.Show(
+                    $"{GetDisplayName(device)} стало доступно. Переключить на него звук?",
+                    "SoundSwitchQuick",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (answer != MessageBoxResult.Yes)
+                    continue;
+            }
+
+            var previous = devices.FirstOrDefault(x => x.IsDefault)?.Id ?? _audio.GetDefaultDeviceId();
+
+            try
+            {
+                _audio.SetDefault(device.Id);
+
+                if (!string.IsNullOrWhiteSpace(previous) && previous != device.Id)
+                {
+                    _returnDeviceId = previous;
+                    _autoSwitchedToId = device.Id;
+                }
+
+                var prefix = action == DeviceConnectActions.Auto ? "Авто" : "Переключено";
+                return (true, $"{prefix}: {GetDisplayName(device)}");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Автопереключение: {ex.Message}");
+            }
+        }
+
+        return (false, null);
+    }
+
+    private string GetConnectAction(string deviceId)
+    {
+        return _settings.DeviceConnectActions.TryGetValue(deviceId, out var action)
+            ? action
+            : DeviceConnectActions.None;
+    }
+
+    private string BuildDeviceCountStatus(IReadOnlyList<AudioDeviceItem> devices)
+    {
+        var visible = devices.Count(x => !_settings.HiddenDeviceIds.Contains(x.Id));
+        var favorites = devices.Count(x =>
+            _settings.FavoriteDeviceIds.Contains(x.Id) &&
+            !_settings.HiddenDeviceIds.Contains(x.Id));
+
+        return favorites > 0
+            ? $"Избранных: {favorites} · доступно: {visible}"
+            : $"Доступно устройств: {visible}";
     }
 
     private string GetDisplayName(AudioDeviceItem device)
@@ -158,47 +295,97 @@ public partial class MainWindow : Window
         return device.Name;
     }
 
-    private WpfButton CreateDeviceButton(AudioDeviceItem device)
+    private int GetFavoriteOrder(string deviceId)
+    {
+        var index = _settings.FavoriteDeviceOrder.IndexOf(deviceId);
+        return index < 0 ? int.MaxValue : index;
+    }
+
+    private List<AudioDeviceItem> GetFavoriteDevices(IReadOnlyList<AudioDeviceItem> devices)
+    {
+        return devices
+            .Where(x =>
+                _settings.FavoriteDeviceIds.Contains(x.Id) &&
+                !_settings.HiddenDeviceIds.Contains(x.Id))
+            .OrderBy(x => GetFavoriteOrder(x.Id))
+            .ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    private void RenderDeviceLists(IReadOnlyList<AudioDeviceItem> devices)
+    {
+        DeviceButtons.Children.Clear();
+        OtherDeviceButtons.Children.Clear();
+
+        var visible = devices
+            .Where(x => !_settings.HiddenDeviceIds.Contains(x.Id))
+            .ToList();
+
+        var favorites = GetFavoriteDevices(visible);
+        var favoriteIds = new HashSet<string>(favorites.Select(x => x.Id));
+        var others = visible
+            .Where(x => !favoriteIds.Contains(x.Id))
+            .OrderByDescending(x => x.IsDefault)
+            .ThenBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if (favorites.Count == 0)
+        {
+            foreach (var device in visible)
+                DeviceButtons.Children.Add(CreateDeviceCard(device));
+
+            AllDevicesToggleButton.Visibility = Visibility.Collapsed;
+            OtherDeviceButtons.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        foreach (var device in favorites)
+            DeviceButtons.Children.Add(CreateDeviceCard(device));
+
+        if (others.Count == 0)
+        {
+            AllDevicesToggleButton.Visibility = Visibility.Collapsed;
+            OtherDeviceButtons.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        AllDevicesToggleButton.Visibility = Visibility.Visible;
+        AllDevicesToggleButton.Content = _showOtherDevices
+            ? $"Скрыть остальные ({others.Count})"
+            : $"Все устройства ({others.Count})";
+
+        OtherDeviceButtons.Visibility = _showOtherDevices
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (_showOtherDevices)
+        {
+            foreach (var device in others)
+                OtherDeviceButtons.Children.Add(CreateDeviceCard(device));
+        }
+    }
+
+    private FrameworkElement CreateDeviceCard(AudioDeviceItem device)
     {
         var displayName = GetDisplayName(device);
-
-        var title = new TextBlock
+        var border = new Border
         {
-            Text = displayName,
-            Foreground = ThemeService.Brush("TextBrush"),
-            FontWeight = FontWeights.SemiBold,
-            FontSize = 13,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            Background = device.IsDefault
+                ? ThemeService.Brush("DeviceActiveBrush")
+                : ThemeService.Brush("DeviceBrush"),
+            BorderBrush = ThemeService.Brush("WidgetBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(11),
+            Padding = new Thickness(10),
+            Margin = new Thickness(0, 0, 0, 7)
         };
 
-        var subtitleText = device.IsDefault
-            ? "Сейчас используется"
-            : displayName == device.Name
-                ? "Нажми, чтобы переключить"
-                : device.Name;
+        var stack = new StackPanel();
 
-        var subtitle = new TextBlock
-        {
-            Text = subtitleText,
-            Foreground = device.IsDefault
-                ? ThemeService.Brush("SuccessBrush")
-                : ThemeService.Brush("MutedTextBrush"),
-            FontSize = 10.5,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        };
-
-        var texts = new StackPanel
-        {
-            Margin = new Thickness(10, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        texts.Children.Add(title);
-        texts.Children.Add(subtitle);
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var top = new Grid();
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var glyph = new TextBlock
         {
@@ -208,44 +395,134 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        Grid.SetColumn(glyph, 0);
-        Grid.SetColumn(texts, 1);
-        grid.Children.Add(glyph);
-        grid.Children.Add(texts);
-
-        if (device.IsDefault)
+        var texts = new StackPanel
         {
-            var check = new TextBlock
-            {
-                Text = "✓",
-                Foreground = ThemeService.Brush("AccentBrush"),
-                FontSize = 17,
-                FontWeight = FontWeights.Bold,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(check, 2);
-            grid.Children.Add(check);
-        }
-
-        var button = new WpfButton
-        {
-            Tag = device.Id,
-            Content = grid,
-            Margin = new Thickness(0, 0, 0, 7),
-            Padding = new Thickness(10),
-            Background = device.IsDefault
-                ? ThemeService.Brush("DeviceActiveBrush")
-                : ThemeService.Brush("DeviceBrush"),
-            BorderBrush = ThemeService.Brush("WidgetBorderBrush"),
-            BorderThickness = new Thickness(1),
-            Foreground = ThemeService.Brush("TextBrush"),
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Cursor = Cursors.Hand,
-            ToolTip = displayName == device.Name ? device.Name : $"{displayName} · {device.Name}"
+            Margin = new Thickness(10, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
 
-        button.Click += DeviceButton_Click;
-        return button;
+        texts.Children.Add(new TextBlock
+        {
+            Text = $"{(_settings.FavoriteDeviceIds.Contains(device.Id) ? "★ " : string.Empty)}{displayName}",
+            Foreground = ThemeService.Brush("TextBrush"),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+
+        texts.Children.Add(new TextBlock
+        {
+            Text = device.IsDefault
+                ? "Сейчас используется"
+                : displayName == device.Name ? device.Name : $"Windows: {device.Name}",
+            Foreground = device.IsDefault
+                ? ThemeService.Brush("SuccessBrush")
+                : ThemeService.Brush("MutedTextBrush"),
+            FontSize = 10,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+
+        var switchButton = new WpfButton
+        {
+            Tag = device.Id,
+            Content = device.IsDefault ? "✓" : "→",
+            Width = 32,
+            Height = 30,
+            Style = (Style)FindResource("MiniButtonStyle"),
+            IsEnabled = !device.IsDefault,
+            ToolTip = device.IsDefault ? "Текущий выход" : $"Переключить на {displayName}"
+        };
+        switchButton.Click += DeviceButton_Click;
+
+        Grid.SetColumn(glyph, 0);
+        Grid.SetColumn(texts, 1);
+        Grid.SetColumn(switchButton, 2);
+        top.Children.Add(glyph);
+        top.Children.Add(texts);
+        top.Children.Add(switchButton);
+        stack.Children.Add(top);
+
+        var volumeRow = new Grid { Margin = new Thickness(3, 9, 0, 0) };
+        volumeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        volumeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        volumeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42) });
+
+        var isMuted = device.IsMuted;
+        var muteButton = new WpfButton
+        {
+            Content = isMuted ? "🔇" : "🔊",
+            Width = 30,
+            Height = 26,
+            Margin = new Thickness(0, 0, 8, 0),
+            Style = (Style)FindResource("MiniButtonStyle"),
+            ToolTip = "Включить / выключить звук"
+        };
+
+        var volumeText = new TextBlock
+        {
+            Text = $"{device.VolumePercent}%",
+            Foreground = ThemeService.Brush("MutedTextBrush"),
+            FontSize = 10,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var slider = new Slider
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = device.VolumePercent,
+            IsMoveToPointEnabled = true,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Громкость устройства"
+        };
+
+        slider.ValueChanged += (_, args) =>
+        {
+            var percent = Math.Clamp((int)Math.Round(args.NewValue), 0, 100);
+
+            try
+            {
+                _audio.SetVolume(device.Id, percent);
+                volumeText.Text = $"{percent}%";
+
+                if (device.IsDefault)
+                    CurrentMeta.Text = $"{(isMuted ? "Без звука" : $"{percent}%")} · колесо = сменить";
+            }
+            catch
+            {
+            }
+        };
+
+        muteButton.Click += (_, _) =>
+        {
+            try
+            {
+                isMuted = _audio.ToggleMute(device.Id);
+                muteButton.Content = isMuted ? "🔇" : "🔊";
+
+                if (device.IsDefault)
+                    CurrentMeta.Text = $"{(isMuted ? "Без звука" : volumeText.Text)} · колесо = сменить";
+            }
+            catch
+            {
+            }
+        };
+
+        Grid.SetColumn(muteButton, 0);
+        Grid.SetColumn(slider, 1);
+        Grid.SetColumn(volumeText, 2);
+        volumeRow.Children.Add(muteButton);
+        volumeRow.Children.Add(slider);
+        volumeRow.Children.Add(volumeText);
+        stack.Children.Add(volumeRow);
+
+        border.Child = stack;
+        border.ToolTip = displayName == device.Name
+            ? device.Name
+            : $"{displayName} · {device.Name}";
+
+        return border;
     }
 
     private async void DeviceButton_Click(object sender, RoutedEventArgs e)
@@ -255,10 +532,13 @@ public partial class MainWindow : Window
 
         try
         {
+            _autoSwitchedToId = null;
+            _returnDeviceId = null;
             _audio.SetDefault(deviceId);
             StatusText.Text = "Переключено";
-            await Task.Delay(180);
-            RefreshDevices(false);
+
+            await Task.Delay(140);
+            RefreshDevices(false, false);
             CollapseWidget();
         }
         catch (Exception ex)
@@ -272,10 +552,66 @@ public partial class MainWindow : Window
         }
     }
 
+    private void CollapsedCard_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        e.Handled = true;
+
+        var devices = _audio.GetPlaybackDevices();
+        var favorites = GetFavoriteDevices(devices);
+
+        if (favorites.Count == 0)
+        {
+            CurrentMeta.Text = "Добавьте избранные устройства в ⚙";
+            return;
+        }
+
+        if (favorites.Count == 1 && favorites[0].IsDefault)
+            return;
+
+        var currentIndex = favorites.FindIndex(x => x.IsDefault);
+        var direction = e.Delta < 0 ? 1 : -1;
+
+        var targetIndex = currentIndex < 0
+            ? 0
+            : (currentIndex + direction + favorites.Count) % favorites.Count;
+
+        try
+        {
+            _autoSwitchedToId = null;
+            _returnDeviceId = null;
+            _audio.SetDefault(favorites[targetIndex].Id);
+            RefreshDevices(false, false);
+        }
+        catch
+        {
+        }
+    }
+
+    private void CollapsedCard_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle)
+            return;
+
+        e.Handled = true;
+
+        var current = _audio.GetPlaybackDevices().FirstOrDefault(x => x.IsDefault);
+        if (current is null)
+            return;
+
+        try
+        {
+            _audio.ToggleMute(current.Id);
+            RefreshDevices(false, false);
+        }
+        catch
+        {
+        }
+    }
+
     private void Widget_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
         _collapseTimer.Stop();
-        RefreshDevices(false);
+        RefreshDevices(false, true);
         ExpandWidget();
     }
 
@@ -288,6 +624,18 @@ public partial class MainWindow : Window
     {
         _collapseTimer.Stop();
         _collapseTimer.Start();
+    }
+
+    private void AllDevicesToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _showOtherDevices = !_showOtherDevices;
+        RenderDeviceLists(_lastDevices);
+
+        if (ExpandedPanel.Visibility == Visibility.Visible)
+        {
+            CollapseWidget();
+            ExpandWidget();
+        }
     }
 
     private void ExpandWidget()
@@ -332,6 +680,7 @@ public partial class MainWindow : Window
         UpdateLayout();
 
         var finalExtraHeight = Math.Max(0, ActualHeight - _collapsedHeight);
+
         if (_isExpandedUp)
             Top = Math.Max(workArea.Top, _collapsedAnchorTop - finalExtraHeight);
         else
