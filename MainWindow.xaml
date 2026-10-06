@@ -31,7 +31,9 @@
                     Cursor="Hand"
                     MouseEnter="Widget_MouseEnter"
                     MouseLeftButtonDown="CollapsedCard_MouseLeftButtonDown"
-                    MouseRightButtonUp="CollapsedCard_MouseRightButtonUp">
+                    MouseRightButtonUp="CollapsedCard_MouseRightButtonUp"
+                    PreviewMouseWheel="CollapsedCard_PreviewMouseWheel"
+                    PreviewMouseDown="CollapsedCard_PreviewMouseDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="42"/>
@@ -39,7 +41,10 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <Border Width="34" Height="34" CornerRadius="11" Background="{DynamicResource AccentSoftBrush}">
+                    <Border Width="34"
+                            Height="34"
+                            CornerRadius="11"
+                            Background="{DynamicResource AccentSoftBrush}">
                         <TextBlock x:Name="CurrentGlyph"
                                    Text="🔊"
                                    FontSize="18"
@@ -47,14 +52,17 @@
                                    VerticalAlignment="Center"/>
                     </Border>
 
-                    <StackPanel Grid.Column="1" Margin="10,0,10,0" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="1"
+                                Margin="10,0,10,0"
+                                VerticalAlignment="Center">
                         <TextBlock x:Name="CurrentName"
                                    Text="Поиск устройства…"
                                    Foreground="{DynamicResource TextBrush}"
                                    FontSize="13.5"
                                    FontWeight="SemiBold"
                                    TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="Текущий аудиовыход"
+                        <TextBlock x:Name="CurrentMeta"
+                                   Text="Текущий аудиовыход"
                                    Foreground="{DynamicResource MutedTextBrush}"
                                    FontSize="10.5"/>
                     </StackPanel>
@@ -88,7 +96,7 @@
                                        Foreground="{DynamicResource TextBrush}"
                                        FontSize="16"
                                        FontWeight="SemiBold"/>
-                            <TextBlock Text="Один клик — и звук переключён"
+                            <TextBlock Text="Громкость и переключение — прямо здесь"
                                        Foreground="{DynamicResource MutedTextBrush}"
                                        FontSize="10.5"/>
                         </StackPanel>
@@ -125,7 +133,21 @@
                     <ScrollViewer x:Name="DeviceScrollViewer"
                                   MaxHeight="310"
                                   VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="DeviceButtons"/>
+                        <StackPanel>
+                            <StackPanel x:Name="DeviceButtons"/>
+
+                            <Button x:Name="AllDevicesToggleButton"
+                                    Visibility="Collapsed"
+                                    Margin="0,1,0,7"
+                                    Padding="10,7"
+                                    HorizontalContentAlignment="Left"
+                                    Style="{StaticResource MiniButtonStyle}"
+                                    Click="AllDevicesToggle_Click"
+                                    Content="Все устройства"/>
+
+                            <StackPanel x:Name="OtherDeviceButtons"
+                                        Visibility="Collapsed"/>
+                        </StackPanel>
                     </ScrollViewer>
 
                     <TextBlock x:Name="StatusText"
