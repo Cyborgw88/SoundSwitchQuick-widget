@@ -5,6 +5,13 @@ using System.Text.Json;
 
 namespace SoundSwitchQuick;
 
+public static class DeviceConnectActions
+{
+    public const string None = "None";
+    public const string Ask = "Ask";
+    public const string Auto = "Auto";
+}
+
 public sealed class WidgetSettings
 {
     public double? Left { get; set; }
@@ -12,7 +19,12 @@ public sealed class WidgetSettings
     public bool Topmost { get; set; } = true;
     public bool AutostartEnabled { get; set; } = true;
     public string Theme { get; set; } = "Dark";
+
     public Dictionary<string, string> DeviceAliases { get; set; } = new();
+    public HashSet<string> FavoriteDeviceIds { get; set; } = new();
+    public List<string> FavoriteDeviceOrder { get; set; } = new();
+    public HashSet<string> HiddenDeviceIds { get; set; } = new();
+    public Dictionary<string, string> DeviceConnectActions { get; set; } = new();
 }
 
 public static class WidgetSettingsStore
@@ -27,14 +39,22 @@ public static class WidgetSettingsStore
     {
         try
         {
-            if (!File.Exists(SettingsPath)) return new WidgetSettings();
+            if (!File.Exists(SettingsPath))
+                return new WidgetSettings();
 
             var settings = JsonSerializer.Deserialize<WidgetSettings>(File.ReadAllText(SettingsPath))
                            ?? new WidgetSettings();
 
             settings.DeviceAliases ??= new Dictionary<string, string>();
+            settings.FavoriteDeviceIds ??= new HashSet<string>();
+            settings.FavoriteDeviceOrder ??= new List<string>();
+            settings.HiddenDeviceIds ??= new HashSet<string>();
+            settings.DeviceConnectActions ??= new Dictionary<string, string>();
+
             if (string.IsNullOrWhiteSpace(settings.Theme))
                 settings.Theme = "Dark";
+
+            settings.FavoriteDeviceOrder.RemoveAll(id => !settings.FavoriteDeviceIds.Contains(id));
 
             return settings;
         }
