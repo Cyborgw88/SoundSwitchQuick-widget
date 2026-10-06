@@ -7,4 +7,6 @@ public sealed class AudioDeviceItem
     public string Subtitle { get; init; } = "Готово к использованию";
     public bool IsDefault { get; init; }
     public string Glyph { get; init; } = "🔊";
+    public int VolumePercent { get; init; }
+    public bool IsMuted { get; init; }
 }
