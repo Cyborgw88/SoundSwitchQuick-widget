@@ -29,7 +29,7 @@ internal sealed class DisplayCommandPipe : IDisposable
                     if (line == null || line.Length > 32768) continue;
                     var args = JsonSerializer.Deserialize<string[]>(line) ?? Array.Empty<string>();
                     // Acknowledge only after queuing the command on the UI dispatcher.
-                    dispatcher.BeginInvoke(new Action(() => handler(args)));
+                    _ = dispatcher.BeginInvoke(new Action(() => handler(args)));
                     using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
                     await writer.WriteLineAsync("OK");
                 }

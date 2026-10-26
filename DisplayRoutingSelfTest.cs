@@ -54,11 +54,28 @@ internal static class DisplayRoutingSelfTest
         var settingsWindow = DisplayWindows.CreateSettings(router);
         settingsWindow.Width = 500; settingsWindow.Height = 420;
         settingsWindow.Show(); settingsWindow.UpdateLayout();
+        SavePreview(settingsWindow, "settings-compact");
         var scroll = FindScroll(settingsWindow);
         Check(scroll != null && scroll.ScrollableHeight > 0, "Настройки прокручиваются в небольшом окне");
         scroll!.ScrollToBottom(); settingsWindow.UpdateLayout();
         Check(scroll.VerticalOffset > 0, "Прокрутка работает");
+        settingsWindow.Width = 720; settingsWindow.Height = 760;
+        scroll.ScrollToTop(); settingsWindow.UpdateLayout();
+        SavePreview(settingsWindow, "settings-normal");
         settingsWindow.Close();
+    }
+    private static void SavePreview(System.Windows.Window window, string name)
+    {
+        var root = Environment.GetEnvironmentVariable("GITHUB_WORKSPACE");
+        if (string.IsNullOrEmpty(root)) return;
+        var directory = System.IO.Path.Combine(root, "ui-preview");
+        System.IO.Directory.CreateDirectory(directory);
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bitmap.Render(window);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var file = System.IO.File.Create(System.IO.Path.Combine(directory, name + ".png"));
+        encoder.Save(file);
     }
     private static System.Windows.Controls.ScrollViewer? FindScroll(System.Windows.DependencyObject root)
     {

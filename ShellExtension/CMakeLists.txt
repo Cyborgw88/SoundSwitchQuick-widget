@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(SoundSwitchQuickShell LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
-add_library(SoundSwitchQuick.Shell SHARED DisplayCommand.cpp)
+add_library(SoundSwitchQuick.Shell SHARED DisplayCommand.cpp exports.def)
 target_compile_options(SoundSwitchQuick.Shell PRIVATE /utf-8 /W4)
 target_compile_definitions(SoundSwitchQuick.Shell PRIVATE UNICODE _UNICODE)
 target_link_libraries(SoundSwitchQuick.Shell PRIVATE shlwapi ole32 shell32)

@@ -1,0 +1,4 @@
+LIBRARY SoundSwitchQuick.Shell
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

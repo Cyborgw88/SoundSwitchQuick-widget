@@ -51,7 +51,7 @@ class Command;
 class CommandEnum final: public RuntimeClass<RuntimeClassFlags<ClassicCom>,IEnumExplorerCommand>,private Lifetime {
     std::vector<ComPtr<IExplorerCommand>> items; ULONG index=0;
 public:
-    explicit CommandEnum(std::vector<ComPtr<IExplorerCommand>> value,ULONG offset=0):items(std::move(value)),index(offset){}
+    explicit CommandEnum(std::vector<ComPtr<IExplorerCommand>> commands,ULONG offset=0):items(std::move(commands)),index(offset){}
     IFACEMETHODIMP Next(ULONG count,IExplorerCommand** result,ULONG* fetched) override {
         if(!result||(!fetched&&count!=1)) return E_POINTER;
         if(fetched)*fetched=0; ULONG n=0;
@@ -66,7 +66,7 @@ class Command final:public RuntimeClass<RuntimeClassFlags<ClassicCom>,IExplorerC
     bool root=true, borderless=false; Target target;
 public:
     Command()=default;
-    Command(Target value,bool full):root(false),borderless(full),target(std::move(value)){}
+    Command(Target display,bool full):root(false),borderless(full),target(std::move(display)){}
     IFACEMETHODIMP GetTitle(IShellItemArray*,PWSTR* result) override {
         return SHStrDupW(root?L"Открыть на экране":(target.name+(borderless?L" · без рамок":L" · обычное окно")).c_str(),result);
     }
@@ -98,9 +98,9 @@ public:
     IFACEMETHODIMP CreateInstance(IUnknown* outer,REFIID iid,void** result) override {if(outer)return CLASS_E_NOAGGREGATION;return Make<Command>()->QueryInterface(iid,result);}
     IFACEMETHODIMP LockServer(BOOL lock) override {if(lock)++objects;else --objects;return S_OK;}
 };
-extern "C" __declspec(dllexport) HRESULT __stdcall DllGetClassObject(REFCLSID clsid,REFIID iid,void** result) {
+STDAPI DllGetClassObject(REFCLSID clsid,REFIID iid,void** result) {
     if(!result)return E_POINTER;*result=nullptr;if(clsid!=CLSID_Display)return CLASS_E_CLASSNOTAVAILABLE;
     return Make<Factory>()->QueryInterface(iid,result);
 }
-extern "C" __declspec(dllexport) HRESULT __stdcall DllCanUnloadNow(){return objects==0?S_OK:S_FALSE;}
+STDAPI DllCanUnloadNow(){return objects==0?S_OK:S_FALSE;}
 BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){module=instance;DisableThreadLibraryCalls(instance);}return TRUE;}
