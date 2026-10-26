@@ -3,7 +3,8 @@ name: Build SoundSwitchQuick EXE
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, feature/display-routing ]
+  pull_request:
 
 permissions:
   contents: read
@@ -50,6 +51,16 @@ jobs:
           Write-Host "EXE ready: $($file.FullName)"
           Write-Host "Size: $([math]::Round($file.Length / 1MB, 2)) MB"
 
+      - name: Test display routing
+        shell: pwsh
+        run: |
+          $process = Start-Process "$env:GITHUB_WORKSPACE\publish\SoundSwitchQuick.exe" -ArgumentList '--display-self-test' -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Display routing tests timed out' }
+          if ($process.ExitCode -ne 0) {
+            Get-Content "$env:LOCALAPPDATA\SoundSwitchQuick\display-routing.log" -ErrorAction SilentlyContinue
+            throw "Display routing tests failed: $($process.ExitCode)"
+          }
+
       - name: Upload EXE
         uses: actions/upload-artifact@v7
         with:
@@ -57,3 +68,4 @@ jobs:
           path: publish/SoundSwitchQuick.exe
           if-no-files-found: error
           retention-days: 30
+

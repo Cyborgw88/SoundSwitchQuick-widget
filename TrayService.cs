@@ -45,6 +45,11 @@ public sealed class TrayService : IDisposable
 
         menu.Items.Add("Показать переключатель", null, (_, _) => _window.ShowWidgetAndExpand());
         menu.Items.Add("Настройки", null, (_, _) => _window.OpenSettings());
+        menu.Items.Add("Экраны и запуск приложений", null, (_, _) =>
+        {
+            if (((App)System.Windows.Application.Current).DisplayRouter is { } router)
+                DisplayShell.ShowSettings(router);
+        });
         menu.Items.Add("Обновить устройства", null, (_, _) => _window.RefreshDevices());
 
         var topmostItem = new Forms.ToolStripMenuItem("Поверх остальных окон")
@@ -73,3 +78,4 @@ public sealed class TrayService : IDisposable
         _icon.Dispose();
     }
 }
+
