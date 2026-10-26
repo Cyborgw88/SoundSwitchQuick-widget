@@ -53,6 +53,7 @@ public static class DisplayShell
         var extension = Path.GetExtension(input).ToLowerInvariant();
         if (extension == ".lnk") target = ResolveShortcut(input);
         else if (extension != ".exe" && extension != ".url") throw new InvalidOperationException("Поддерживаются EXE, LNK и игровые URL-ярлыки.");
+        if (router.Settings.ShortcutApplications.TryGetValue(input, out var mapped) && File.Exists(mapped)) target = mapped;
         if (Path.GetExtension(target).Equals(".exe", StringComparison.OrdinalIgnoreCase) && !DisplayRouter.IsInfrastructure(target))
         {
             router.Choose(target, rule);
@@ -62,7 +63,11 @@ public static class DisplayShell
         else
         {
             Process.Start(new ProcessStartInfo(input) { UseShellExecute = true });
-            ShowWindowPicker(router, rule);
+            ShowWindowPicker(router, rule, path =>
+            {
+                router.Settings.ShortcutApplications[input] = path;
+                router.Settings.Save();
+            });
         }
     }
     private static string ResolveShortcut(string path)
@@ -80,7 +85,7 @@ public static class DisplayShell
             if (shell != null && Marshal.IsComObject(shell)) Marshal.FinalReleaseComObject(shell);
         }
     }
-    public static void ShowWindowPicker(DisplayRouter router, DisplayRule? preset = null)
+    public static void ShowWindowPicker(DisplayRouter router, DisplayRule? preset = null, Action<string>? onChosen = null)
     {
         using var form = new Forms.Form { Text = "Выберите запущенную игру / приложение", Width = 720, Height = 400, StartPosition = Forms.FormStartPosition.CenterScreen };
         var list = new Forms.ListBox { Dock = Forms.DockStyle.Fill, HorizontalScrollbar = true };
@@ -102,7 +107,7 @@ public static class DisplayShell
         apply.Click += (_, _) =>
         {
             if (list.SelectedItem is not string path || screens.SelectedItem is not DisplayTarget screen) return;
-            try { router.Choose(path, new() { ScreenId = screen.Id, Borderless = full.Checked }); form.Close(); }
+            try { router.Choose(path, new() { ScreenId = screen.Id, Borderless = full.Checked }); onChosen?.Invoke(path); form.Close(); }
             catch (Exception ex) { Forms.MessageBox.Show(ex.Message); }
         };
         panel.Controls.AddRange(new Forms.Control[] { screens, full, refresh, apply });

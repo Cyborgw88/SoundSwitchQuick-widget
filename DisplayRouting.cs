@@ -22,6 +22,7 @@ public sealed class DisplayRoutingSettings
     public bool ContextMenuEnabled { get; set; }
     public string DefaultScreenId { get; set; } = "";
     public Dictionary<string, DisplayRule> Applications { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> ShortcutApplications { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public static string DirectoryPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SoundSwitchQuick");
     public static string FilePath => Path.Combine(DirectoryPath, "display-routing.json");
     public static DisplayRoutingSettings Load()
@@ -31,6 +32,7 @@ public sealed class DisplayRoutingSettings
         {
             var value = JsonSerializer.Deserialize<DisplayRoutingSettings>(File.ReadAllText(FilePath)) ?? new();
             value.Applications = new(value.Applications ?? new(), StringComparer.OrdinalIgnoreCase);
+            value.ShortcutApplications = new(value.ShortcutApplications ?? new(), StringComparer.OrdinalIgnoreCase);
             return value;
         }
         catch (Exception ex)
@@ -196,7 +198,7 @@ public sealed class DisplayRouter : IDisposable
             return true;
         }, IntPtr.Zero);
     }
-    private void Place(IntPtr h, DisplayRule rule)
+    internal void Place(IntPtr h, DisplayRule rule)
     {
         var oldDpi = DisplayNative.SetThreadDpiAwarenessContext(new IntPtr(-4));
         try
