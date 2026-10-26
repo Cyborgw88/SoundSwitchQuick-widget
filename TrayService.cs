@@ -13,16 +13,10 @@ public sealed class TrayService : IDisposable
 
     public void Initialize()
     {
-        Icon trayIcon;
-        try
-        {
-            trayIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? string.Empty)
-                       ?? SystemIcons.Application;
-        }
-        catch
-        {
-            trayIcon = SystemIcons.Application;
-        }
+        using var iconStream = typeof(TrayService).Assembly.GetManifestResourceStream("SoundSwitchQuick.TrayIcon")
+            ?? throw new InvalidOperationException("Ресурс иконки не найден");
+        using var sourceIcon = new Icon(iconStream);
+        var trayIcon = (Icon)sourceIcon.Clone();
 
         _icon = new Forms.NotifyIcon
         {
@@ -75,7 +69,9 @@ public sealed class TrayService : IDisposable
             return;
 
         _icon.Visible = false;
+        var image = _icon.Icon;
         _icon.Dispose();
+        image?.Dispose();
     }
 }
 

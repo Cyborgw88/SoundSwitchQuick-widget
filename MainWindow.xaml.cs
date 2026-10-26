@@ -638,6 +638,13 @@ public partial class MainWindow : Window
         }
     }
 
+    private void AnimateChevron(double angle)
+    {
+        ChevronRotation.BeginAnimation(RotateTransform.AngleProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(angle, TimeSpan.FromMilliseconds(160))
+            { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+    }
+
     private void ExpandWidget()
     {
         if (ExpandedPanel.Visibility == Visibility.Visible)
@@ -686,7 +693,7 @@ public partial class MainWindow : Window
         else
             Top = _collapsedAnchorTop;
 
-        ChevronText.Text = _isExpandedUp ? "⌃" : "⌄";
+        AnimateChevron(_isExpandedUp ? 180 : 0);
     }
 
     private void CollapseWidget()
@@ -702,7 +709,7 @@ public partial class MainWindow : Window
 
         _isExpandedUp = false;
         DeviceScrollViewer.MaxHeight = 310;
-        ChevronText.Text = "⌄";
+        AnimateChevron(0);
     }
 
     private void EnsurePanelAbove()

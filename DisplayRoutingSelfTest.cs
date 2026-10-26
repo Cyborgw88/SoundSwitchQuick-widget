@@ -49,6 +49,26 @@ internal static class DisplayRoutingSelfTest
         router.Place(window.Handle, new DisplayRule { ScreenId = actualScreens[0].Id });
         Check(DisplayNative.GetStyle(window.Handle, -16) == originalStyle, "Восстановлен стиль окна");
         window.Close();
+        using var embeddedIcon = typeof(TrayService).Assembly.GetManifestResourceStream("SoundSwitchQuick.TrayIcon");
+        Check(embeddedIcon != null && embeddedIcon.Length > 100, "Встроенная иконка трея");
+        var settingsWindow = DisplayWindows.CreateSettings(router);
+        settingsWindow.Width = 500; settingsWindow.Height = 420;
+        settingsWindow.Show(); settingsWindow.UpdateLayout();
+        var scroll = FindScroll(settingsWindow);
+        Check(scroll != null && scroll.ScrollableHeight > 0, "Настройки прокручиваются в небольшом окне");
+        scroll!.ScrollToBottom(); settingsWindow.UpdateLayout();
+        Check(scroll.VerticalOffset > 0, "Прокрутка работает");
+        settingsWindow.Close();
+    }
+    private static System.Windows.Controls.ScrollViewer? FindScroll(System.Windows.DependencyObject root)
+    {
+        if (root is System.Windows.Controls.ScrollViewer viewer) return viewer;
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var found = FindScroll(System.Windows.Media.VisualTreeHelper.GetChild(root, i));
+            if (found != null) return found;
+        }
+        return null;
     }
     private static void Check(bool condition, string name)
     {
