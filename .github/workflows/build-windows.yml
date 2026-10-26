@@ -3,7 +3,8 @@ name: Build SoundSwitchQuick EXE
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, feature/display-routing ]
+  pull_request:
 
 permissions:
   contents: read
@@ -39,6 +40,24 @@ jobs:
             -p:DebugSymbols=false `
             -o "$env:GITHUB_WORKSPACE\publish"
 
+      - name: Build and test Explorer extension
+        shell: pwsh
+        run: |
+          cmake -S ShellExtension -B shell-build -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
+          cmake --build shell-build --config Release
+          if ($LASTEXITCODE -ne 0) { throw 'Shell build failed' }
+          & ./shell-build/Release/ShellTests.exe ./shell-build/Release/SoundSwitchQuick.Shell.dll
+          if ($LASTEXITCODE -ne 0) { throw 'Shell tests failed' }
+          Copy-Item ./shell-build/Release/SoundSwitchQuick.Shell.dll ./publish/
+          Copy-Item ./ShellExtension/Install-ModernMenu.ps1 ./publish/
+          New-Item ./package/Assets -ItemType Directory -Force
+          Copy-Item ./ShellExtension/AppxManifest.xml ./package/
+          Copy-Item ./Assets/Logo*.png ./package/Assets/
+          $sdk = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin' -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'x64/makeappx.exe') } | Sort-Object Name -Descending | Select-Object -First 1
+          & (Join-Path $sdk.FullName 'x64/makeappx.exe') pack /o /d ./package /nv /p ./publish/SoundSwitchQuick.Menu.msix
+          if ($LASTEXITCODE -ne 0) { throw 'Package build failed' }
+
       - name: Verify EXE
         shell: pwsh
         run: |
@@ -50,10 +69,29 @@ jobs:
           Write-Host "EXE ready: $($file.FullName)"
           Write-Host "Size: $([math]::Round($file.Length / 1MB, 2)) MB"
 
+      - name: Test display routing
+        shell: pwsh
+        run: |
+          $process = Start-Process "$env:GITHUB_WORKSPACE\publish\SoundSwitchQuick.exe" -ArgumentList '--display-self-test' -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Display routing tests timed out' }
+          if ($process.ExitCode -ne 0) {
+            Get-Content "$env:LOCALAPPDATA\SoundSwitchQuick\display-routing.log" -ErrorAction SilentlyContinue
+            throw "Display routing tests failed: $($process.ExitCode)"
+          }
+
+      - name: Upload UI previews
+        uses: actions/upload-artifact@v7
+        with:
+          name: SoundSwitchQuick-UI-previews
+          path: ui-preview/*.png
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload EXE
         uses: actions/upload-artifact@v7
         with:
           name: SoundSwitchQuick-Windows-x64
-          path: publish/SoundSwitchQuick.exe
+          path: publish/*
           if-no-files-found: error
           retention-days: 30
+
